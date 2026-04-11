@@ -1,22 +1,29 @@
 from fastapi import FastAPI
-from backend.db.connection import get_connection
+from contextlib import asynccontextmanager
+from backend.db.connection import init_db, close_db, get_pool
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+    await close_db()
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
 def root():
     return {"message": "API running successfully!"}
 
 @app.get("/test-db")
-def test_db():
+async def test_db():
     try:
-        conn = get_connection()
-        cursor = conn.cursor()
+        pool = get_pool()
 
-        cursor.execute("SELECT 1;")
-        result = cursor.fetchone()
-
-        conn.close()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute("SELECT 1;")
+                result = await cursor.fetchone()
 
         return {
             "db": "connected",
