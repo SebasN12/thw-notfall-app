@@ -1,19 +1,31 @@
-import mysql.connector
+import aiomysql
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-print("DB_PORT:", os.getenv("DB_PORT"))
-print("HOST RAW:", repr(os.getenv("DB_HOST")))
+pool: aiomysql.Pool | None = None
 
-def get_connection():
-    connection = mysql.connector.connect(
+async def init_db():
+    global pool
+    pool = await aiomysql.create_pool(
         host=os.getenv("DB_HOST"),
-        port=int(os.getenv("DB_PORT")),
+        port=int(os.getenv("DB_PORT", 3306)),
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME"),
-        ssl_disabled=False
+        db=os.getenv("DB_NAME"),
+        autocommit=False,
+        minsize=1,
+        maxsize=10,
     )
-    return connection
+
+async def close_db():
+    global pool
+    if pool:
+        pool.close()
+        await pool.wait_closed()
+
+def get_pool() -> aiomysql.Pool:
+    if pool is None:
+        raise RuntimeError("Datenbankverbindung nicht initialisiert")
+    return pool
