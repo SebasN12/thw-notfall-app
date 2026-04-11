@@ -1,34 +1,16 @@
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from backend.db.connection import init_db, close_db, get_pool
-
-
+from fastapi import FastAPI
+from db.connection import init_db, close_db
+from app.routes import lager_routes as lager
+ 
+ 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     yield
     await close_db()
-
-app = FastAPI(lifespan=lifespan)
-
-@app.get("/")
-def root():
-    return {"message": "API running successfully!"}
-
-@app.get("/test-db")
-async def test_db():
-    try:
-        pool = get_pool()
-
-        async with pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute("SELECT 1;")
-                result = await cursor.fetchone()
-
-        return {
-            "db": "connected",
-            "result": result
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
+ 
+ 
+app = FastAPI(title="Lagerbestand API", lifespan=lifespan)
+ 
+app.include_router(lager.router)
