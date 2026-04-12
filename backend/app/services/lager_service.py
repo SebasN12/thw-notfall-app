@@ -1,5 +1,5 @@
 import aiomysql
-from app.models.lager_model import (
+from backend.app.models.lager_model import (
     OrtsverbandListItem,
     LagerListItem,
     LagerDetailSchema,
@@ -8,7 +8,6 @@ from app.models.lager_model import (
     ProduktImFachSchema,
     NaehrwerteSchema,
 )
-
 
 async def get_alle_ortsverbaende(pool: aiomysql.Pool) -> list[OrtsverbandListItem]:
     async with pool.acquire() as conn:

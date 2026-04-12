@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException
-from db.connection import get_pool
-from app.models.lager_model import (
+from backend.db.connection import get_pool
+from backend.app.models.lager_model import (
     OrtsverbandListItem,
     LagerListItem,
     LagerDetailSchema,
 )
-from app.services import lager_service
+from backend.app.services import lager_service
  
 router = APIRouter(tags=["Lager"])
  
