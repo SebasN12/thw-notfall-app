@@ -13,9 +13,6 @@ class SupplyCalculatorRequest(BaseModel):
 
 
 class ProductGroupRequirement(BaseModel):
-    """
-    Anforderung für eine Erzeugnisgruppe
-    """
     erzeugnisgruppe_id: int
     erzeugnisgruppe_name: str
     unit: str
@@ -69,10 +66,6 @@ class SupplyCalculatorResponse(BaseModel):
 
 
 class ProductThresholdResponse(BaseModel):
-    """
-    Response für Schwellwertabfrage
-    Zeigt BBK-Mindestmengen pro Erzeugnisgruppe
-    """
     erzeugnisgruppe_id: int
     erzeugnisgruppe_name: str
     min_quantity: float
@@ -81,9 +74,6 @@ class ProductThresholdResponse(BaseModel):
 
 
 class WarehouseStockResponse(BaseModel):
-    """
-    Response für aktuellen Lagerbestand eines Ortsverbands
-    """
     erzeugnisgruppe_id: int
     erzeugnisgruppe_name: str
     current_stock: float
@@ -92,7 +82,6 @@ class WarehouseStockResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """Standard Error Response"""
     error: str
     detail: Optional[str] = None
     status_code: int
