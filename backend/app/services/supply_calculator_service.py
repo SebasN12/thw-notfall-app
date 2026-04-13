@@ -11,10 +11,6 @@ from models import (
 
 
 class SupplyCalculatorService:
-    """
-    Service für Vorratsrechnungen
-    Verwaltet Datenbankoperationen und Berechnungslogik
-    """
 
     # BBK Empfehlung 2023: 2200 kcal pro Person und Tag
     DAILY_KCAL_PER_PERSON = 2200
@@ -25,44 +21,19 @@ class SupplyCalculatorService:
     # RED < 50%
 
     def __init__(self, db_connection):
-        """
-        Initialisiert Service mit Datenbankverbindung
-
-        Args:
-            db_connection: MySQL Datenbankverbindung
-        """
         self.db = db_connection
 
     def calculate_supply(
         self, ortsverband_id: int, num_persons: int, duration_days: int
     ) -> SupplyCalculatorResponse:
-        """
-        Hauptfunktion: Berechnet Vorratsdeckung
-
-        Args:
-            ortsverband_id: ID des Ortsverbands
-            num_persons: Anzahl zu versorgender Personen
-            duration_days: Versorgungsdauer in Tagen
-
-        Returns:
-            SupplyCalculatorResponse mit detaillierten Berechnungen
-
-        Raises:
-            ValueError: Falls Ortsverband nicht existiert
-            Error: Bei Datenbankfehlern
-        """
-        # Validate Ortsverband exists
+       
         ortsverband_name = self._get_ortsverband_name(ortsverband_id)
         if not ortsverband_name:
             raise ValueError(f"Ortsverband mit ID {ortsverband_id} nicht gefunden")
 
-        # Get all product groups with thresholds
         product_groups_data = self._get_product_groups_with_thresholds()
-
-        # Get current stock for this Ortsverband
         current_stocks = self._get_current_stocks(ortsverband_id)
 
-        # Calculate requirements and coverage for each product group
         product_group_results: List[ProductGroupRequirement] = []
         total_kcal_available = 0.0
         total_kcal_required = 0.0
@@ -117,7 +88,7 @@ class SupplyCalculatorService:
                 )
             )
 
-        # Calculate total person-days (formula: verfügbare kcal / 2200)
+      
         if self.DAILY_KCAL_PER_PERSON > 0:
             total_person_days = round(
                 total_kcal_available / self.DAILY_KCAL_PER_PERSON, 2
@@ -125,21 +96,18 @@ class SupplyCalculatorService:
         else:
             total_person_days = 0.0
 
-        # Calculate total coverage ratio for overall status
         if total_kcal_required > 0:
             total_coverage_ratio = total_kcal_available / total_kcal_required
         else:
             total_coverage_ratio = 1.0
 
-        # Determine overall status (angepasst für Gesamt-Deckung)
         if total_coverage_ratio >= 1.0:
             overall_status = "GREEN"
         elif total_coverage_ratio >= 0.5:
             overall_status = "YELLOW"
         else:
             overall_status = "RED"
-
-        # Generate summary
+            
         summary = self._generate_summary(
             num_persons, duration_days, total_person_days, overall_status
         )
@@ -159,15 +127,6 @@ class SupplyCalculatorService:
         )
 
     def _get_ortsverband_name(self, ortsverband_id: int) -> Optional[str]:
-        """
-        Holt den Namen eines Ortsverbands
-
-        Args:
-            ortsverband_id: ID des Ortsverbands
-
-        Returns:
-            Name oder None falls nicht gefunden
-        """
         try:
             cursor = self.db.cursor(dictionary=True)
             query = "SELECT name FROM ortsverband WHERE id = %s"
@@ -181,12 +140,7 @@ class SupplyCalculatorService:
     def _get_product_groups_with_thresholds(
         self,
     ) -> List[Dict]:
-        """
-        Holt alle Erzeugnisgruppen mit deren BBK-Mindestmengen
-
-        Returns:
-            Liste mit Erzeugnisgruppe-Daten
-        """
+        
         try:
             cursor = self.db.cursor(dictionary=True)
             query = """
@@ -213,15 +167,6 @@ class SupplyCalculatorService:
             )
 
     def _get_current_stocks(self, ortsverband_id: int) -> Dict[int, float]:
-        """
-        Holt aktuellen Bestand pro Erzeugnisgruppe für einen Ortsverband
-
-        Args:
-            ortsverband_id: ID des Ortsverbands
-
-        Returns:
-            Dictionary: {erzeugnisgruppe_id: current_quantity}
-        """
         try:
             cursor = self.db.cursor(dictionary=True)
             query = """
@@ -254,18 +199,6 @@ class SupplyCalculatorService:
     def _generate_summary(
         self, num_persons: int, duration_days: int, total_person_days: float, overall_status: str
     ) -> str:
-        """
-        Generiert eine Zusammenfassung der Berechnung
-
-        Args:
-            num_persons: Anzahl Personen
-            duration_days: Versorgungsdauer
-            total_person_days: Berechnete Personentage
-            overall_status: Gesamtstatus (GREEN/YELLOW/RED)
-
-        Returns:
-            Zusammenfassungs-String
-        """
         status_text = {
             "GREEN": "ausreichend ✓",
             "YELLOW": "knapp",
@@ -281,12 +214,6 @@ class SupplyCalculatorService:
             return f"Vorrat ist {status_label}. Es fehlen ~{int(shortfall)} Personentage für die angeforderte Versorgung."
 
     def get_product_thresholds(self) -> List[ProductThresholdResponse]:
-        """
-        Holt alle BBK-Schwellwerte für Erzeugnisgruppen
-
-        Returns:
-            Liste mit Schwellwert-Daten
-        """
         try:
             cursor = self.db.cursor(dictionary=True)
             query = """
@@ -321,15 +248,6 @@ class SupplyCalculatorService:
     def get_warehouse_stock(
         self, ortsverband_id: int
     ) -> List[WarehouseStockResponse]:
-        """
-        Holt aktuellen Lagerbestand eines Ortsverbands
-
-        Args:
-            ortsverband_id: ID des Ortsverbands
-
-        Returns:
-            Liste mit aktuellen Beständen pro Erzeugnisgruppe
-        """
         try:
             cursor = self.db.cursor(dictionary=True)
             query = """
