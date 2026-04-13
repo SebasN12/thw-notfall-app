@@ -10,28 +10,17 @@ from typing import Generator
 import os
 from dotenv import load_dotenv
 
-# Lade Environment Variables aus .env
 load_dotenv()
-
-# ============================================================================
-# DATENBANKKONFIGURATION
-# ============================================================================
-
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "user": os.getenv("DB_USER", "root"),
     "password": os.getenv("DB_PASSWORD", ""),
     "database": os.getenv("DB_NAME", "thw_notfall_app"),
     "port": int(os.getenv("DB_PORT", 3306)),
-    "autocommit": True,  # Für THW-Projekt: Änderungen sofort persistieren
+    "autocommit": True, 
 }
 
-# ============================================================================
-# CONNECTION POOL (Empfohlen für Production)
-# ============================================================================
-
 try:
-    # Erstelle einen Connection Pool für bessere Performance
     connection_pool = pooling.MySQLConnectionPool(
         pool_name="thw_pool",
         pool_size=5,
@@ -43,30 +32,13 @@ except Error as e:
     print(f"✗ Fehler beim Connection Pool: {e}")
     connection_pool = None
 
-
-# ============================================================================
-# DEPENDENCY INJECTION FÜR FASTAPI
-# ============================================================================
-
 def get_db_connection() -> Generator:
-    """
-    FastAPI Dependency: Stellt DB-Connection bereit
-    
-    Nutzung in Routes:
-    ```python
-    @app.get("/endpoint")
-    async def my_endpoint(db=Depends(get_db_connection)):
-        cursor = db.cursor()
-        # ...
-    ```
-    """
     connection = None
     try:
         if connection_pool:
-            # Nutze Connection Pool falls vorhanden
+           
             connection = connection_pool.get_connection()
         else:
-            # Fallback: Direktverbindung
             connection = mysql.connector.connect(**DB_CONFIG)
         
         yield connection
@@ -78,16 +50,7 @@ def get_db_connection() -> Generator:
         if connection and connection.is_connected():
             connection.close()
 
-
-# ============================================================================
-# SINGLETON CONNECTION (Alternative, für bestehende Services)
-# ============================================================================
-
 class DatabaseConnection:
-    """
-    Singleton-Klasse für Datenbankverbindung
-    Wenn du lieber mit Klassen arbeiten möchtest
-    """
     _instance = None
     _connection = None
 
@@ -98,7 +61,6 @@ class DatabaseConnection:
 
     @classmethod
     def get_connection(cls):
-        """Holt oder erstellt Datenbankverbindung"""
         if cls._connection is None or not cls._connection.is_connected():
             try:
                 if connection_pool:
@@ -119,24 +81,8 @@ class DatabaseConnection:
             cls._connection = None
             print("✓ Datenbankverbindung geschlossen")
 
-
-# ============================================================================
-# CONTEXT MANAGER (für Tests und Scripts)
-# ============================================================================
-
 @contextmanager
 def database():
-    """
-    Context Manager für Datenbankverbindung
-    
-    Nutzung in Scripts:
-    ```python
-    with database() as db:
-        cursor = db.cursor()
-        cursor.execute("SELECT * FROM erzeugnisgruppe")
-        results = cursor.fetchall()
-    ```
-    """
     connection = None
     try:
         if connection_pool:
@@ -151,18 +97,7 @@ def database():
         if connection and connection.is_connected():
             connection.close()
 
-
-# ============================================================================
-# UTILITY FUNCTIONS
-# ============================================================================
-
 def test_connection() -> bool:
-    """
-    Testet die Datenbankverbindung
-    
-    Returns:
-        True wenn erfolgreich, False sonst
-    """
     try:
         with database() as conn:
             cursor = conn.cursor()
@@ -177,19 +112,6 @@ def test_connection() -> bool:
 
 
 def execute_query(query: str, params: tuple = None) -> list:
-    """
-    Führt SELECT-Query aus und gibt Ergebnisse zurück
-    
-    Args:
-        query: SQL-Query
-        params: Query-Parameter (für Prepared Statements)
-    
-    Returns:
-        Liste mit Ergebnissen
-    
-    Beispiel:
-        results = execute_query("SELECT * FROM product WHERE id = %s", (1,))
-    """
     try:
         with database() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -203,19 +125,6 @@ def execute_query(query: str, params: tuple = None) -> list:
 
 
 def execute_update(query: str, params: tuple = None) -> int:
-    """
-    Führt INSERT/UPDATE/DELETE aus
-    
-    Args:
-        query: SQL-Query
-        params: Query-Parameter
-    
-    Returns:
-        Anzahl betroffener Zeilen
-    
-    Beispiel:
-        rows = execute_update("UPDATE stock SET quantity = %s WHERE id = %s", (100, 1))
-    """
     try:
         with database() as conn:
             cursor = conn.cursor()
@@ -228,23 +137,6 @@ def execute_update(query: str, params: tuple = None) -> int:
         print(f"✗ Update-Fehler: {e}")
         raise
 
-
-# ============================================================================
-# .env BEISPIEL (erstelle diese Datei mit deinen Werten)
-# ============================================================================
-
-"""
-# .env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=dein_passwort
-DB_NAME=thw_notfall_app
-"""
-
-# ============================================================================
-# BEIM APP-START AUSFÜHREN
-# ============================================================================
 
 if __name__ == "__main__":
     print("Testing database connection...")
