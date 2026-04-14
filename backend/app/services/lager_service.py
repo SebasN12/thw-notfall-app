@@ -70,23 +70,27 @@ async def get_lager_detail(
                     await cur.execute(
                         """
                         SELECT
-                            s.id            AS stock_id,
-                            p.id            AS produkt_id,
-                            p.name          AS name,
-                            p.marke         AS marke,
-                            p.menge         AS menge,
-                            p.lebensmittelgruppe AS erzeugnisgruppe,
-                            s.best_before   AS mhd,
-                            s.quantity      AS menge_eingelagert,
-                            p.barcode       AS barcode,
-                            p.kcal          AS kcal,
-                            p.protein       AS protein,
-                            p.fat           AS fett,
-                            p.carbs         AS kohlenhydrate
+                            MIN(s.id)                                           AS stock_id,
+                            p.id                                                AS produkt_id,
+                            p.name                                              AS name,
+                            p.marke                                             AS marke,
+                            p.menge                                             AS menge,
+                            p.lebensmittelgruppe                                AS erzeugnisgruppe,
+                            MIN(s.best_before)                                  AS mhd,
+                            COUNT(s.id)                                         AS menge_eingelagert,
+                            SUM(s.zustand = 'geöffnet')                         AS menge_geoeffnet,
+                            p.barcode                                           AS barcode,
+                            p.kcal                                              AS kcal,
+                            p.protein                                           AS protein,
+                            p.fat                                               AS fett,
+                            p.carbs                                             AS kohlenhydrate
                         FROM stock s
                         JOIN product p ON s.product_id = p.id
                         WHERE s.shelf_slot_id = %s
-                        ORDER BY s.best_before ASC
+                        GROUP BY
+                            p.id, p.name, p.marke, p.menge, p.lebensmittelgruppe,
+                            p.barcode, p.kcal, p.protein, p.fat, p.carbs
+                        ORDER BY MIN(s.best_before) ASC
                         """,
                         (slot["id"],),
                     )
@@ -102,6 +106,7 @@ async def get_lager_detail(
                             erzeugnisgruppe=p["erzeugnisgruppe"],
                             mhd=p["mhd"],
                             menge_eingelagert=p["menge_eingelagert"],
+                            menge_geoeffnet=p["menge_geoeffnet"],
                             barcode=p["barcode"],
                             naehrwerte=NaehrwerteSchema(
                                 kcal=p["kcal"],

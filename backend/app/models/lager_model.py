@@ -23,6 +23,7 @@ class ProduktImFachSchema(BaseModel):
     erzeugnisgruppe: str | None
     mhd: date | None
     menge_eingelagert: int | None
+    menge_geoeffnet: int | None
     barcode: str | None
     naehrwerte: NaehrwerteSchema
 
