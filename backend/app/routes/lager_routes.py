@@ -29,4 +29,30 @@ async def lager_detail(warehouse_id: int):
     if not result:
         raise HTTPException(status_code=404, detail="Lager nicht gefunden")
     return result
- 
+
+@router.get("/benchmark/lager/{warehouse_id}")
+async def benchmark(warehouse_id: int):
+    import time
+
+    runs = 10
+    times = []
+
+    for _ in range(runs):
+        start = time.perf_counter()
+
+        result = await lager_service.get_lager_detail(get_pool(), warehouse_id)
+
+        end = time.perf_counter()
+
+        times.append(end - start)
+
+    avg_time = sum(times) / runs
+
+    return {
+        "runs": runs,
+        "average_time": avg_time,
+        "min_time": min(times),
+        "max_time": max(times),
+        "performance_ok": False if avg_time > 0.5 else True,
+        "ok": True
+    }
