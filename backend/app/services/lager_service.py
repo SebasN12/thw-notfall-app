@@ -1,4 +1,5 @@
 import aiomysql
+from collections import defaultdict
 from backend.app.models.lager_model import (
     OrtsverbandListItem,
     LagerListItem,
@@ -139,4 +140,160 @@ async def get_lager_detail(
         id=warehouse["id"],
         name=warehouse["name"],
         regale=regale,
+    )
+
+async def get_lager_detail_v2(
+    pool: aiomysql.Pool, warehouse_id: int
+) -> LagerDetailSchema | None:
+
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+
+            await cur.execute(
+                """
+                SELECT id, name
+                FROM warehouse
+                WHERE id = %s
+                """,
+                (warehouse_id,),
+            )
+
+            warehouse = await cur.fetchone()
+
+            if not warehouse:
+                return None
+
+
+            await cur.execute(
+                """
+                SELECT
+                    sh.id                AS shelf_id,
+                    sh.label             AS shelf_label,
+                    ss.id                AS slot_id,
+                    ss.position          AS slot_position,
+                    ss.max_capacity      AS slot_capacity
+                FROM shelf sh
+                LEFT JOIN shelf_slot ss
+                    ON ss.shelf_id = sh.id
+                WHERE sh.warehouse_id = %s
+                ORDER BY sh.label, ss.position
+                """,
+                (warehouse_id,),
+            )
+
+            slot_rows = await cur.fetchall()
+
+            
+            await cur.execute(
+                """
+                SELECT
+                    s.shelf_slot_id                                    AS slot_id,
+
+                    MIN(s.id)                                          AS stock_id,
+
+                    p.id                                               AS produkt_id,
+                    p.name                                             AS name,
+                    p.marke                                            AS marke,
+                    p.menge                                            AS menge,
+                    p.lebensmittelgruppe                               AS erzeugnisgruppe,
+
+                    MIN(s.best_before)                                 AS mhd,
+
+                    COUNT(s.id)                                        AS menge_eingelagert,
+
+                    SUM(s.zustand = 'geöffnet')                        AS menge_geoeffnet,
+
+                    p.barcode                                          AS barcode,
+                    p.kcal                                             AS kcal,
+                    p.protein                                          AS protein,
+                    p.fat                                              AS fett,
+                    p.carbs                                            AS kohlenhydrate
+
+                FROM stock s
+                JOIN product p
+                    ON p.id = s.product_id
+
+                JOIN shelf_slot ss
+                    ON ss.id = s.shelf_slot_id
+
+                JOIN shelf sh
+                    ON sh.id = ss.shelf_id
+
+                WHERE sh.warehouse_id = %s
+
+                GROUP BY
+                    s.shelf_slot_id,
+                    p.id,
+                    p.name,
+                    p.marke,
+                    p.menge,
+                    p.lebensmittelgruppe,
+                    p.barcode,
+                    p.kcal,
+                    p.protein,
+                    p.fat,
+                    p.carbs
+
+                ORDER BY
+                    s.shelf_slot_id,
+                    MIN(s.best_before)
+                """,
+                (warehouse_id,),
+            )
+
+            product_rows = await cur.fetchall()
+
+    
+    produkte_by_slot: dict[int, list[ProduktImFachSchema]] = defaultdict(list)
+
+    for p in product_rows:
+        produkte_by_slot[p["slot_id"]].append(
+            ProduktImFachSchema(
+                stock_id=p["stock_id"],
+                produkt_id=p["produkt_id"],
+                name=p["name"],
+                marke=p["marke"],
+                menge=p["menge"],
+                erzeugnisgruppe=p["erzeugnisgruppe"],
+                mhd=p["mhd"],
+                menge_eingelagert=p["menge_eingelagert"],
+                menge_geoeffnet=p["menge_geoeffnet"],
+                barcode=p["barcode"],
+                naehrwerte=NaehrwerteSchema(
+                    kcal=p["kcal"],
+                    protein=p["protein"],
+                    fett=p["fett"],
+                    kohlenhydrate=p["kohlenhydrate"],
+                ),
+            )
+        )
+
+    
+    shelves_map: dict[int, RegalSchema] = {}
+
+    for row in slot_rows:
+
+        shelf_id = row["shelf_id"]
+
+        if shelf_id not in shelves_map:
+            shelves_map[shelf_id] = RegalSchema(
+                id=shelf_id,
+                bezeichnung=row["shelf_label"],
+                lagerfaecher=[],
+            )
+
+        if row["slot_id"] is not None:
+            shelves_map[shelf_id].lagerfaecher.append(
+                LagerfachSchema(
+                    id=row["slot_id"],
+                    position=row["slot_position"],
+                    max_kapazitaet=row["slot_capacity"],
+                    produkte=produkte_by_slot.get(row["slot_id"], []),
+                )
+            )
+
+    return LagerDetailSchema(
+        id=warehouse["id"],
+        name=warehouse["name"],
+        regale=list(shelves_map.values()),
     )
