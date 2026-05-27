@@ -33,9 +33,23 @@
       <h2 class="card__title">Ortsverband</h2>
       <p class="card__text">Aktuell ausgewählter Ortsverband für die Demo.</p>
       <div class="top-space-sm">
-        <select class="text-input">
-          <option>OV Karlstadt</option>
-        </select>
+        <select
+  class="text-input"
+  :value="selectedOrtsverband?.id ?? ''"
+  @change="event => {
+    const id = Number((event.target as HTMLSelectElement).value)
+    const found = ortsverbaende.find(o => o.id === id)
+    if (found) setSelectedOrtsverband(found)
+  }"
+>
+  <option
+    v-for="ortsverband in ortsverbaende"
+    :key="ortsverband.id"
+    :value="ortsverband.id"
+  >
+    {{ ortsverband.name }}
+  </option>
+</select>
       </div>
     </div>
 
@@ -113,8 +127,19 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../services/api'
 import type { AlertType, InventoryAlert, InventoryStats } from '../types'
+import { getOrtsverbaende } from '../services/lagerApi'
+import { useOrtsverbandStore } from '../stores/ortsverbandStore'
+import type { Ortsverband } from '../types'
 
 const loading = ref(true)
+
+const ortsverbaende = ref<Ortsverband[]>([])
+
+const {
+  selectedOrtsverband,
+  setSelectedOrtsverband,
+  loadSelectedOrtsverband,
+} = useOrtsverbandStore()
 
 const stats = ref<InventoryStats>({
   warehouseCount: 0,
@@ -135,10 +160,27 @@ const counts = computed(() => ({
 
 const topAlerts = computed(() => alerts.value.slice(0, 4))
 
-onMounted(async () => {
+/* onMounted(async () => {
   loading.value = true
   stats.value = await api.getInventoryStats()
   alerts.value = await api.getInventoryAlerts()
+  loading.value = false
+}) */
+
+onMounted(async () => {
+  loading.value = true
+
+  loadSelectedOrtsverband()
+
+  ortsverbaende.value = await getOrtsverbaende()
+
+  if (!selectedOrtsverband.value && ortsverbaende.value.length > 0) {
+    setSelectedOrtsverband(ortsverbaende.value[0])
+  }
+
+  stats.value = await api.getInventoryStats()
+  alerts.value = await api.getInventoryAlerts()
+
   loading.value = false
 })
 

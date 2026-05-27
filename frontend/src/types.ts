@@ -1,36 +1,49 @@
-export interface Product {
+export interface Ortsverband {
   id: number
-  name: string
-  brand: string
-  packSize: string
-  category: string
-  menge: number
-  weightKg: number
-  mhd: string
-  barcode: string
-  kcal: number
-  protein: number
-  fat: number
-  carbs: number
-  threshold: number
+  name: string | null
 }
 
-export interface Slot {
+export interface LagerListItem {
   id: number
-  name: string
-  products: Product[]
+  name: string | null
 }
 
-export interface Shelf {
-  id: number
-  name: string
-  slots: Slot[]
+export interface Produkt {
+  stock_id: number
+  produkt_id: number
+  name: string | null
+  marke: string | null
+  menge: string | null
+  erzeugnisgruppe: string | null
+  mhd: string | null
+  menge_eingelagert: number | null
+  menge_geoeffnet: number | null
+  barcode: string | null
+  naehrwerte: {
+    kcal: number | null
+    protein: number | null
+    fett: number | null
+    kohlenhydrate: number | null
+  }
 }
 
-export interface Warehouse {
+export interface Lagerfach {
   id: number
-  name: string
-  shelves: Shelf[]
+  position: string | null
+  max_kapazitaet: number | null
+  produkte: Produkt[]
+}
+
+export interface Regal {
+  id: number
+  bezeichnung: string | null
+  lagerfaecher: Lagerfach[]
+}
+
+export interface LagerDetail {
+  id: number
+  name: string | null
+  regale: Regal[]
 }
 
 export type AlertType = 'mhd-red' | 'mhd-yellow' | 'stock-low'
@@ -38,7 +51,7 @@ export type AlertType = 'mhd-red' | 'mhd-yellow' | 'stock-low'
 export interface InventoryAlert {
   id: string
   type: AlertType
-  product: Product
+  product: Produkt
   warehouseName: string
   shelfName: string
   slotName: string
@@ -54,7 +67,7 @@ export interface InventoryStats {
 }
 
 export interface ProductLocation {
-  product: Product
+  product: Produkt
   warehouseName: string
   shelfName: string
   slotName: string

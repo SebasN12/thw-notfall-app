@@ -189,7 +189,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../services/api'
-import type { Product, Shelf, Slot, Warehouse } from '../types'
+import type { Produkt, Regal, Lagerfach, Warehouse } from '../types'
 
 const warehouses = ref<Warehouse[]>([])
 
@@ -198,7 +198,7 @@ const selectedShelfId = ref<number>(0)
 const selectedSlotId = ref<number>(0)
 
 const barcode = ref('')
-const knownProduct = ref<Product | null>(null)
+const knownProduct = ref<Produkt | null>(null)
 const showUnknownForm = ref(false)
 const successMessage = ref('')
 
@@ -229,15 +229,15 @@ const selectedWarehouse = computed<Warehouse | null>(() => {
   return warehouses.value.find((item) => item.id === selectedWarehouseId.value) ?? null
 })
 
-const availableShelves = computed<Shelf[]>(() => {
+const availableShelves = computed<Regal[]>(() => {
   return selectedWarehouse.value?.shelves ?? []
 })
 
-const selectedShelf = computed<Shelf | null>(() => {
+const selectedShelf = computed<Regal | null>(() => {
   return availableShelves.value.find((item) => item.id === selectedShelfId.value) ?? null
 })
 
-const availableSlots = computed<Slot[]>(() => {
+const availableSlots = computed<Lagerfach[]>(() => {
   return selectedShelf.value?.slots ?? []
 })
 

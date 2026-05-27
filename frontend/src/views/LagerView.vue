@@ -3,17 +3,22 @@
     <div>
       <h1 class="page__title">Lager</h1>
       <p class="page__subtitle">
-        Lagerstruktur nach Warehouse, Regal, Fach und Produkt.
+        Lagerstruktur nach Lager, Regal, Fach und Produkt.
       </p>
     </div>
 
-    <div class="breadcrumb" v-if="selectedWarehouse || selectedShelf || selectedSlot">
-      <span v-if="selectedWarehouse">{{ selectedWarehouse.name }}</span>
-      <span v-if="selectedShelf"> / {{ selectedShelf.name }}</span>
-      <span v-if="selectedSlot"> / {{ selectedSlot.name }}</span>
+    <div class="soft-card" v-if="selectedOrtsverband">
+      <h3 class="soft-card__title">Aktueller Ortsverband</h3>
+      <p class="soft-card__text">{{ selectedOrtsverband.name }}</p>
     </div>
 
-    <div v-if="selectedSlot" class="toolbar-stack">
+    <div class="breadcrumb" v-if="selectedLager || selectedRegal || selectedLagerfach">
+      <span v-if="selectedLager">{{ selectedLager.name }}</span>
+      <span v-if="selectedRegal"> / {{ selectedRegal.bezeichnung }}</span>
+      <span v-if="selectedLagerfach"> / Fach {{ selectedLagerfach.position ?? selectedLagerfach.id }}</span>
+    </div>
+
+    <div v-if="selectedLagerfach" class="toolbar-stack">
       <input
         v-model="productQuery"
         class="search-input"
@@ -29,80 +34,127 @@
       <div>Lagerdaten werden geladen ...</div>
     </div>
 
-    <div v-else-if="!selectedWarehouse" class="card-grid">
+    <div v-else-if="errorMessage" class="empty-state">
+      {{ errorMessage }}
+      <div class="top-space-sm">
+        <RouterLink to="/" class="primary-button" style="display: inline-block;">
+          Zum Dashboard
+        </RouterLink>
+      </div>
+    </div>
+
+    <!-- Lagerliste -->
+    <div v-else-if="!selectedLager" class="card-grid">
       <button
-        v-for="warehouse in warehouses"
-        :key="warehouse.id"
+        v-for="lager in lagerListe"
+        :key="lager.id"
         class="select-card card-tap"
         type="button"
-        @click="openWarehouse(warehouse)"
+        @click="openLager(lager)"
       >
-        <span class="select-card__title">{{ warehouse.name }}</span>
+        <span class="select-card__title">{{ lager.name ?? `Lager ${lager.id}` }}</span>
         <span class="select-card__text">
-          {{ warehouse.shelves.length }} Regale
+          Details anzeigen
         </span>
       </button>
-    </div>
 
-    <div v-else-if="selectedWarehouse && !selectedShelf" class="page">
-      <button class="back-button" type="button" @click="resetToWarehouses">← Alle Lager</button>
-
-      <div class="card-grid">
-        <button
-          v-for="shelf in selectedWarehouse.shelves"
-          :key="shelf.id"
-          class="select-card card-tap"
-          type="button"
-          @click="openShelf(shelf)"
-        >
-          <span class="select-card__title">{{ shelf.name }}</span>
-          <span class="select-card__text">
-            {{ shelf.slots.length }} Fächer
-          </span>
-        </button>
+      <div v-if="!lagerListe.length" class="empty-state">
+        Für diesen Ortsverband wurden keine Lager gefunden.
       </div>
     </div>
 
-    <div v-else-if="selectedShelf && !selectedSlot" class="page">
-      <button class="back-button" type="button" @click="selectedShelf = null">← Zurück zu Regalen</button>
+    <!-- Regale -->
+    <div v-else-if="selectedLager && !selectedRegal" class="page">
+      <button class="back-button" type="button" @click="resetToLagerListe">
+        ← Alle Lager
+      </button>
 
       <div class="card-grid">
         <button
-          v-for="slot in selectedShelf.slots"
-          :key="slot.id"
+          v-for="regal in selectedLager.regale"
+          :key="regal.id"
           class="select-card card-tap"
           type="button"
-          @click="openSlot(slot)"
+          @click="openRegal(regal)"
         >
-          <span class="select-card__title">{{ slot.name }}</span>
+          <span class="select-card__title">
+            {{ regal.bezeichnung ?? `Regal ${regal.id}` }}
+          </span>
           <span class="select-card__text">
-            {{ slot.products.length }} Produkte
+            {{ regal.lagerfaecher.length }} Fächer
           </span>
         </button>
+
+        <div v-if="!selectedLager.regale.length" class="empty-state">
+          Dieses Lager enthält aktuell keine Regale.
+        </div>
       </div>
     </div>
 
-    <div v-else-if="selectedSlot" class="page">
-      <button class="back-button" type="button" @click="selectedSlot = null">← Zurück zu Fächern</button>
+    <!-- Lagerfächer -->
+    <div v-else-if="selectedRegal && !selectedLagerfach" class="page">
+      <button class="back-button" type="button" @click="selectedRegal = null">
+        ← Zurück zu Regalen
+      </button>
+
+      <div class="card-grid">
+        <button
+          v-for="lagerfach in selectedRegal.lagerfaecher"
+          :key="lagerfach.id"
+          class="select-card card-tap"
+          type="button"
+          @click="openLagerfach(lagerfach)"
+        >
+          <span class="select-card__title">
+            Fach {{ lagerfach.position ?? lagerfach.id }}
+          </span>
+          <span class="select-card__text">
+            {{ lagerfach.produkte.length }} Produkte
+            <span v-if="lagerfach.max_kapazitaet">
+              · max. {{ lagerfach.max_kapazitaet }}
+            </span>
+          </span>
+        </button>
+
+        <div v-if="!selectedRegal.lagerfaecher.length" class="empty-state">
+          Dieses Regal enthält aktuell keine Lagerfächer.
+        </div>
+      </div>
+    </div>
+
+    <!-- Produkte -->
+    <div v-else-if="selectedLagerfach" class="page">
+      <button class="back-button" type="button" @click="selectedLagerfach = null">
+        ← Zurück zu Fächern
+      </button>
 
       <div v-if="filteredProducts.length" class="card-grid">
         <RouterLink
-          v-for="product in filteredProducts"
-          :key="product.id"
-          :to="`/produkt/${product.id}`"
+          v-for="produkt in filteredProducts"
+          :key="produkt.stock_id"
+          :to="`/produkt/${produkt.stock_id}`"
           class="product-card card-tap"
         >
           <div class="product-card__top">
             <div>
-              <h2 class="card__title" style="margin-bottom: 4px;">{{ product.name }}</h2>
-              <p class="card__text">{{ product.brand }} · {{ product.packSize }}</p>
+              <h2 class="card__title" style="margin-bottom: 4px;">
+                {{ produkt.name ?? 'Unbenanntes Produkt' }}
+              </h2>
+              <p class="card__text">
+                {{ produkt.marke ?? 'Keine Marke' }} · {{ produkt.menge ?? 'Keine Packungsgröße' }}
+              </p>
             </div>
-            <span class="mini-badge">{{ product.category }}</span>
+
+            <span class="mini-badge">
+              {{ produkt.erzeugnisgruppe ?? 'Sonstiges' }}
+            </span>
           </div>
 
           <div class="product-card__meta">
-            <span><strong>Menge:</strong> {{ product.menge }}</span>
-            <span><strong>MHD:</strong> {{ product.mhd }}</span>
+            <span><strong>Bestand:</strong> {{ produkt.menge_eingelagert ?? 0 }}</span>
+            <span><strong>Geöffnet:</strong> {{ produkt.menge_geoeffnet ?? 0 }}</span>
+            <span><strong>MHD:</strong> {{ produkt.mhd ?? 'Kein MHD' }}</span>
+            <span><strong>Barcode:</strong> {{ produkt.barcode ?? '–' }}</span>
           </div>
         </RouterLink>
       </div>
@@ -116,58 +168,101 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { api } from '../services/api'
-import type { Product, Shelf, Slot, Warehouse } from '../types'
+import type { LagerDetail, Lagerfach, LagerListItem, Produkt, Regal } from '../types'
+import { getWarehouseDetail, getWarehouses } from '../services/lagerApi'
+import { useOrtsverbandStore } from '../stores/ortsverbandStore'
 
 const loading = ref(true)
-const warehouses = ref<Warehouse[]>([])
-const selectedWarehouse = ref<Warehouse | null>(null)
-const selectedShelf = ref<Shelf | null>(null)
-const selectedSlot = ref<Slot | null>(null)
+const errorMessage = ref('')
+
+const lagerListe = ref<LagerListItem[]>([])
+const selectedLager = ref<LagerDetail | null>(null)
+const selectedRegal = ref<Regal | null>(null)
+const selectedLagerfach = ref<Lagerfach | null>(null)
 const productQuery = ref('')
 
+const {
+  selectedOrtsverband,
+  loadSelectedOrtsverband,
+} = useOrtsverbandStore()
+
 onMounted(async () => {
-  loading.value = true
-  warehouses.value = await api.getWarehouses()
-  loading.value = false
+  await loadLagerListe()
 })
 
-const filteredProducts = computed<Product[]>(() => {
-  const products = selectedSlot.value?.products ?? []
+async function loadLagerListe(): Promise<void> {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    loadSelectedOrtsverband()
+
+    if (!selectedOrtsverband.value) {
+      errorMessage.value = 'Bitte zuerst im Dashboard einen Ortsverband auswählen.'
+      return
+    }
+
+    lagerListe.value = await getWarehouses(selectedOrtsverband.value.id)
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = 'Lagerdaten konnten nicht geladen werden.'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function openLager(lager: LagerListItem): Promise<void> {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    selectedRegal.value = null
+    selectedLagerfach.value = null
+    productQuery.value = ''
+
+    selectedLager.value = await getWarehouseDetail(lager.id)
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = 'Lagerdetails konnten nicht geladen werden.'
+  } finally {
+    loading.value = false
+  }
+}
+
+function openRegal(regal: Regal): void {
+  selectedRegal.value = regal
+  selectedLagerfach.value = null
+  productQuery.value = ''
+}
+
+function openLagerfach(lagerfach: Lagerfach): void {
+  selectedLagerfach.value = lagerfach
+  productQuery.value = ''
+}
+
+function resetToLagerListe(): void {
+  selectedLager.value = null
+  selectedRegal.value = null
+  selectedLagerfach.value = null
+  productQuery.value = ''
+}
+
+const filteredProducts = computed<Produkt[]>(() => {
+  const produkte = selectedLagerfach.value?.produkte ?? []
   const q = productQuery.value.trim().toLowerCase()
 
-  if (!q) return products
+  if (!q) return produkte
 
-  return products.filter((product) =>
-    [product.name, product.brand, product.category, product.barcode]
+  return produkte.filter((produkt) =>
+    [
+      produkt.name,
+      produkt.marke,
+      produkt.erzeugnisgruppe,
+      produkt.barcode,
+    ]
       .join(' ')
       .toLowerCase()
       .includes(q),
   )
 })
-
-function openWarehouse(warehouse: Warehouse): void {
-  selectedWarehouse.value = warehouse
-  selectedShelf.value = null
-  selectedSlot.value = null
-  productQuery.value = ''
-}
-
-function openShelf(shelf: Shelf): void {
-  selectedShelf.value = shelf
-  selectedSlot.value = null
-  productQuery.value = ''
-}
-
-function openSlot(slot: Slot): void {
-  selectedSlot.value = slot
-  productQuery.value = ''
-}
-
-function resetToWarehouses(): void {
-  selectedWarehouse.value = null
-  selectedShelf.value = null
-  selectedSlot.value = null
-  productQuery.value = ''
-}
 </script>

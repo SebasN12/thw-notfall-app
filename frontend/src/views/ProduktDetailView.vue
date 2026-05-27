@@ -121,14 +121,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../services/api'
-import type { Product } from '../types'
+import type { Produkt } from '../types'
 
 const route = useRoute()
 const router = useRouter()
 
 const productId = Number(route.params.id)
 
-const product = ref<Product | null>(null)
+const product = ref<Produkt | null>(null)
 const amount = ref<number>(1)
 const reason = ref<string>('')
 const mode = ref<'remove' | 'add'>('remove')
