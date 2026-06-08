@@ -34,17 +34,20 @@ async def lager_detail(warehouse_id: int):
 @router.get("/benchmark/lager_detail", tags=["benchmark"])
 async def benchmark():
     import time
+    import random
 
     runs = 10
     times = []
     times_v2 = []
 
+    warehouse_ids = await lager_service.get_all_warehouse_ids(get_pool())
+
     for _ in range(runs):
         start = time.perf_counter()
 
-        # 1323 test warehouse for Karlstadt
+        warehouse_id = random.choice(warehouse_ids)
 
-        result = await lager_service.get_lager_detail(get_pool(), 1323)
+        result = await lager_service.get_lager_detail(get_pool(), warehouse_id)
 
         end = time.perf_counter()
 
@@ -55,7 +58,9 @@ async def benchmark():
     for _ in range(runs):
         start = time.perf_counter()
 
-        result = await lager_service.get_lager_detail_v2(get_pool(), 1323)
+        warehouse_id = random.choice(warehouse_ids)
+
+        result = await lager_service.get_lager_detail_v2(get_pool(), warehouse_id)
 
         end = time.perf_counter()
 
@@ -87,14 +92,20 @@ async def benchmark():
 @router.get("/benchmark/expiring-products", tags=["benchmark"])
 async def benchmark_expiring_products():
     import time
+    import random
 
-    runs = 10
+    runs = 100
     times = []
 
+    warehouse_ids = await lager_service.get_all_warehouse_ids(get_pool())
+
     for _ in range(runs):
+
+        warehouse_id = random.choice(warehouse_ids)
+
         start = time.perf_counter()
 
-        result = await lager_service.get_expiring_products(get_pool(), None, 7)
+        result = await lager_service.get_expiring_products(get_pool(), warehouse_id, 30)
 
         end = time.perf_counter()
 
@@ -113,16 +124,8 @@ async def benchmark_expiring_products():
             },
     }
 
-@router.get("/expiring-products", tags=["expiring-products"], response_model=list[ExpiringProductSchema])
-async def expiring_products_global(expiring_within_days: int = Query(7, ge=1, le=365)):
-    return await lager_service.get_expiring_products(
-        pool=get_pool(),
-        warehouse_id=None,
-        days=expiring_within_days,
-    )
-
 @router.get("/{warehouse_id}/expiring-products", tags=["expiring-products"], response_model=list[ExpiringProductSchema])
-async def expiring_products_by_warehouse(warehouse_id: int, expiring_within_days: int = Query(7, ge=1, le=365)):
+async def expiring_products_by_warehouse(warehouse_id: int, expiring_within_days: int = Query(30, ge=1, le=365)):
     return await lager_service.get_expiring_products(
         pool=get_pool(),
         warehouse_id=warehouse_id,
