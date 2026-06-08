@@ -1,5 +1,6 @@
 import aiomysql
 from collections import defaultdict
+from datetime import date
 from backend.app.models.lager_model import (
     OrtsverbandListItem,
     LagerListItem,
@@ -8,6 +9,7 @@ from backend.app.models.lager_model import (
     LagerfachSchema,
     ProduktImFachSchema,
     NaehrwerteSchema,
+    ExpiringProductSchema,
 )
 
 async def get_alle_ortsverbaende(pool: aiomysql.Pool) -> list[OrtsverbandListItem]:
@@ -297,3 +299,78 @@ async def get_lager_detail_v2(
         name=warehouse["name"],
         regale=list(shelves_map.values()),
     )
+
+async def get_expiring_products(
+    pool: aiomysql.Pool,
+    warehouse_id: int,
+    days: int = 30,
+) -> list[ExpiringProductSchema]:
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+
+            query = """
+                SELECT
+                    s.id AS stock_id,
+                    s.product_id,
+                    p.name,
+                    p.marke,
+                    s.best_before AS mhd,
+                    sh.id AS warehouse_id,
+                    sh.label AS warehouse_name
+                FROM stock s
+                JOIN product p ON p.id = s.product_id
+                JOIN shelf_slot ss ON ss.id = s.shelf_slot_id
+                JOIN shelf sh ON sh.id = ss.shelf_id
+                WHERE sh.warehouse_id = %s
+                AND s.best_before IS NOT NULL
+                AND s.best_before <= DATE_ADD(CURDATE(), INTERVAL %s DAY)
+                ORDER BY s.best_before ASC
+            """
+
+            params = [warehouse_id, days]
+
+            await cur.execute(query, params)
+            rows = await cur.fetchall()
+
+        result: list[ExpiringProductSchema] = []
+
+        for r in rows:
+            mhd = r["mhd"]
+
+            days_left = None
+            status = "unknown"
+
+            if mhd:
+                days_left = (mhd - date.today()).days
+
+                if days_left <= 0:
+                    status = "expired"
+                elif days_left <= 3:
+                    status = "critical"
+                elif days_left <= 7:
+                    status = "warning"
+                else:
+                    status = "ok"
+
+            result.append(
+                ExpiringProductSchema(
+                    stock_id=r["stock_id"],
+                    product_id=r["product_id"],
+                    name=r["name"],
+                    brand=r["marke"],
+                    warehouse_id=r["warehouse_id"],
+                    warehouse_name=r["warehouse_name"],
+                    best_before=mhd,
+                    days_left=days_left,
+                    status=status,
+                )
+            )
+
+    return result
+
+async def get_all_warehouse_ids(pool):
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT id FROM warehouse")
+            rows = await cur.fetchall()
+            return [r["id"] for r in rows]

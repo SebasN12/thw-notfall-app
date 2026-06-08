@@ -50,3 +50,16 @@ class LagerDetailSchema(BaseModel):
 class LagerListItem(BaseModel):
     id: int
     name: str | None
+
+class ExpiringProductSchema(BaseModel):
+    stock_id: int
+    product_id: int
+    name: str
+    brand: str | None
+
+    warehouse_id: int
+    warehouse_name: str
+
+    best_before: date | None
+    days_left: int | None
+    status: str
