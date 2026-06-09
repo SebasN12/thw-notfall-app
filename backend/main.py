@@ -5,7 +5,7 @@ from backend.db.connection import init_db, close_db
 
 from backend.app.routes import lager_routes as lager
 from backend.app.routes import stock_routes as stock
-
+from backend.app.routes import notification_routes as notification
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,3 +46,4 @@ async def test_db():
 # Router registrieren
 app.include_router(lager.router)
 app.include_router(stock.router)
+app.include_router(notification.router)
