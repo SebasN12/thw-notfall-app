@@ -86,6 +86,41 @@ export interface CalculatorSummary {
   totalAvailableKg: number
 }
 
+export type SupplyStatus = 'GREEN' | 'YELLOW' | 'RED'
+
+export interface SupplyCalculatorRequest {
+  ortsverband_id: number
+  num_persons: number
+  duration_days: number
+}
+
+export interface SupplyProductGroup {
+  erzeugnisgruppe_id: number
+  erzeugnisgruppe_name: string
+  unit: string | null
+  min_quantity: number
+  required_amount: number
+  current_stock: number
+  coverage_percentage: number
+  status: SupplyStatus
+  kcal_available: number
+  kcal_required: number
+}
+
+export interface SupplyCalculatorResponse {
+  ortsverband_id: number
+  ortsverband_name: string
+  calculation_date: string
+  input_persons: number
+  input_duration_days: number
+  product_groups: SupplyProductGroup[]
+  total_kcal_available: number
+  total_kcal_required: number
+  total_person_days: number
+  overall_status: SupplyStatus
+  summary: string
+}
+
 export interface BookingPayload {
   productId: number
   amount: number
