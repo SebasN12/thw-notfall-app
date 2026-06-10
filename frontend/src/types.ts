@@ -130,3 +130,53 @@ export interface BookingPayload {
 export interface AddStockPayload extends BookingPayload {}
 
 export interface RemoveStockPayload extends BookingPayload {}
+
+export interface StockDetail {
+  stock_id: number
+  produkt_id: number
+  shelf_slot_id: number
+  name: string | null
+  marke: string | null
+  menge: string | null
+  erzeugnisgruppe: string | null
+  mhd: string | null
+  menge_eingelagert: number
+  menge_geoeffnet: number
+  barcode: string | null
+  naehrwerte: {
+    kcal: number | null
+    protein: number | null
+    fett: number | null
+    kohlenhydrate: number | null
+  }
+
+  lagerfach_id: number
+  lagerfach_position: string | null
+  regal_id: number
+  regal_bezeichnung: string | null
+  warehouse_id: number
+  warehouse_name: string | null
+}
+
+export interface StockRemoveRequest {
+  stock_id: number
+  user_id: number
+  quantity: number
+  reason?: string | null
+}
+
+export interface StockAddRequest {
+  shelf_slot_id: number
+  product_id: number
+  user_id: number
+  quantity: number
+  best_before?: string | null
+  stored_at?: string | null
+  reason?: string | null
+}
+
+export interface StockActionResponse {
+  message: string
+  stock_id: number
+  quantity: number
+}

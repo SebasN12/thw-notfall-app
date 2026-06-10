@@ -100,6 +100,23 @@ async def debug_calculator_schema():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/debug/triggers")
+async def debug_triggers():
+    try:
+        from backend.db.connection import get_pool
+
+        pool = get_pool()
+
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute("SHOW TRIGGERS;")
+                result = await cursor.fetchall()
+
+        return {"triggers": result}
+
+    except Exception as e:
+        return {"error": str(e)}
+
 # Router registrieren
 app.include_router(lager.router)
 app.include_router(stock.router)
