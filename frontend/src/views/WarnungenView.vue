@@ -21,21 +21,21 @@
       <div class="stat-card">
         <span class="stat-card__label">Abgelaufen</span>
         <strong class="stat-card__value">
-          {{ visibleWarnings.filter((w) => w.status === 'expired').length }}
+          {{ visibleWarnings.filter((w) => getMhdStatus(w.days_left) === 'expired').length }}
         </strong>
       </div>
 
       <div class="stat-card">
-        <span class="stat-card__label">Kritisch</span>
+        <span class="stat-card__label">MHD rot</span>
         <strong class="stat-card__value">
-          {{ visibleWarnings.filter((w) => w.status === 'critical').length }}
+          {{ visibleWarnings.filter((w) => getMhdStatus(w.days_left) === 'mhd-red').length }}
         </strong>
       </div>
 
       <div class="stat-card">
-        <span class="stat-card__label">Warnung</span>
+        <span class="stat-card__label">MHD gelb</span>
         <strong class="stat-card__value">
-          {{ visibleWarnings.filter((w) => w.status === 'warning').length }}
+          {{ visibleWarnings.filter((w) => getMhdStatus(w.days_left) === 'mhd-yellow').length }}
         </strong>
       </div>
     </div>
@@ -62,7 +62,7 @@
         v-for="warning in visibleWarnings"
         :key="warning.stock_id"
         class="card"
-        :class="cardClass(warning.status)"
+        :class="cardClass(warning.days_left)"
       >
         <div class="alert-card__top">
           <div>
@@ -74,8 +74,8 @@
             </p>
           </div>
 
-          <span class="inline-status" :class="statusClass(warning.status)">
-            {{ statusLabel(warning.status) }}
+          <span class="inline-status" :class="statusClass(warning.days_left)">
+            {{ statusLabel(warning.days_left) }}
           </span>
         </div>
 
@@ -102,7 +102,7 @@
         </div>
 
         <p class="card__text" style="margin-top: 12px;">
-          {{ description(warning.status, warning.days_left) }}
+          {{ description(warning.days_left) }}
         </p>
 
         <div class="text-right top-space-sm">
@@ -111,7 +111,7 @@
             type="button"
             @click="acknowledge(warning.stock_id)"
           >
-            Zur Kenntnis genommen
+            In dieser Ansicht ausblenden
           </button>
         </div>
       </div>
@@ -130,6 +130,8 @@ import {
   type ExpiringProduct,
 } from '../services/warnungenApi'
 import { useOrtsverbandStore } from '../stores/ortsverbandStore'
+
+type MhdStatus = 'expired' | 'mhd-red' | 'mhd-yellow' | 'unknown'
 
 const loading = ref(true)
 const errorMessage = ref('')
@@ -159,7 +161,7 @@ onMounted(async () => {
 
     warnings.value = await getExpiringProductsByOrtsverband(
       selectedOrtsverband.value.id,
-      30,
+      90,
     )
   } catch (error) {
     console.error(error)
@@ -173,39 +175,70 @@ function acknowledge(stockId: number): void {
   dismissedIds.value.push(stockId)
 }
 
-function statusClass(status: ExpiringProduct['status']): string {
+function getMhdStatus(daysLeft: number | null): MhdStatus {
+  if (daysLeft === null) return 'unknown'
+  if (daysLeft < 0) return 'expired'
+  if (daysLeft < 30) return 'mhd-red'
+  if (daysLeft < 90) return 'mhd-yellow'
+
+  return 'unknown'
+}
+
+function statusClass(daysLeft: number | null): string {
+  const status = getMhdStatus(daysLeft)
+
   if (status === 'expired') return 'inline-status--danger'
-  if (status === 'critical') return 'inline-status--danger'
-  if (status === 'warning') return 'inline-status--warning'
+  if (status === 'mhd-red') return 'inline-status--danger'
+  if (status === 'mhd-yellow') return 'inline-status--warning'
+
   return 'inline-status--success'
 }
 
-function statusLabel(status: ExpiringProduct['status']): string {
-  if (status === 'expired') return 'Abgelaufen'
-  if (status === 'critical') return 'Kritisch'
-  if (status === 'warning') return 'MHD-Warnung'
-  if (status === 'ok') return 'OK'
+function statusLabel(daysLeft: number | null): string {
+  const status = getMhdStatus(daysLeft)
+
+  if (status === 'expired') {
+    return `Abgelaufen${typeof daysLeft === 'number' ? ` · ${Math.abs(daysLeft)} Tage` : ''}`
+  }
+
+  if (status === 'mhd-red') {
+    return `MHD rot${typeof daysLeft === 'number' ? ` · ${daysLeft} Tage` : ''}`
+  }
+
+  if (status === 'mhd-yellow') {
+    return `MHD gelb${typeof daysLeft === 'number' ? ` · ${daysLeft} Tage` : ''}`
+  }
+
   return 'Unbekannt'
 }
 
-function cardClass(status: ExpiringProduct['status']): string {
+function cardClass(daysLeft: number | null): string {
+  const status = getMhdStatus(daysLeft)
+
   if (status === 'expired') return 'alert-card alert-card--danger'
-  if (status === 'critical') return 'alert-card alert-card--danger'
-  if (status === 'warning') return 'alert-card alert-card--warning'
+  if (status === 'mhd-red') return 'alert-card alert-card--danger'
+  if (status === 'mhd-yellow') return 'alert-card alert-card--warning'
+
   return 'alert-card'
 }
 
-function description(status: ExpiringProduct['status'], daysLeft: number | null): string {
+function description(daysLeft: number | null): string {
+  const status = getMhdStatus(daysLeft)
+
   if (status === 'expired') {
     return 'Dieses Produkt ist bereits abgelaufen und sollte sofort geprüft oder ausgesondert werden.'
   }
 
-  if (status === 'critical') {
-    return `Dieses Produkt läuft sehr bald ab${typeof daysLeft === 'number' ? `, aktuell in ${daysLeft} Tagen` : ''}. Sofort prüfen und bevorzugt verbrauchen.`
+  if (status === 'mhd-red') {
+    return `Dieses Produkt läuft sehr bald ab${
+      typeof daysLeft === 'number' ? `, aktuell in ${daysLeft} Tagen` : ''
+    }. Sofort prüfen und bevorzugt verbrauchen.`
   }
 
-  if (status === 'warning') {
-    return `Dieses Produkt läuft bald ab${typeof daysLeft === 'number' ? `, aktuell in ${daysLeft} Tagen` : ''}. Zeitnah Verbrauch oder Ersatz planen.`
+  if (status === 'mhd-yellow') {
+    return `Dieses Produkt läuft bald ab${
+      typeof daysLeft === 'number' ? `, aktuell in ${daysLeft} Tagen` : ''
+    }. Zeitnah Verbrauch oder Ersatz planen.`
   }
 
   return 'Dieses Produkt liegt aktuell noch im unkritischen Bereich.'
