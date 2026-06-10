@@ -18,10 +18,12 @@
           <span class="hero-stat__label">Lager</span>
           <strong class="hero-stat__value">{{ stats.warehouseCount }}</strong>
         </div>
+
         <div class="hero-stat">
           <span class="hero-stat__label">Produkte</span>
           <strong class="hero-stat__value">{{ stats.productCount }}</strong>
         </div>
+
         <div class="hero-stat">
           <span class="hero-stat__label">Warnungen</span>
           <strong class="hero-stat__value">{{ counts.total }}</strong>
@@ -32,24 +34,21 @@
     <div class="card">
       <h2 class="card__title">Ortsverband</h2>
       <p class="card__text">Aktuell ausgewählter Ortsverband für die Demo.</p>
+
       <div class="top-space-sm">
         <select
-  class="text-input"
-  :value="selectedOrtsverband?.id ?? ''"
-  @change="event => {
-    const id = Number((event.target as HTMLSelectElement).value)
-    const found = ortsverbaende.find(o => o.id === id)
-    if (found) setSelectedOrtsverband(found)
-  }"
->
-  <option
-    v-for="ortsverband in ortsverbaende"
-    :key="ortsverband.id"
-    :value="ortsverband.id"
-  >
-    {{ ortsverband.name }}
-  </option>
-</select>
+          class="text-input"
+          :value="selectedOrtsverband?.id ?? ''"
+          @change="onOrtsverbandChange"
+        >
+          <option
+            v-for="ortsverband in ortsverbaende"
+            :key="ortsverband.id"
+            :value="ortsverband.id"
+          >
+            {{ ortsverband.name }}
+          </option>
+        </select>
       </div>
     </div>
 
@@ -61,6 +60,7 @@
 
     <div>
       <div class="section-title">Schnellzugriffe</div>
+
       <div class="action-grid">
         <RouterLink to="/lager" class="action-button card-tap">
           <span class="action-button__title">Lager einsehen</span>
@@ -94,7 +94,11 @@
         <div class="loading-dots">
           <span></span><span></span><span></span>
         </div>
-        <div>Warnungen werden geladen ...</div>
+        <div>Dashboard-Daten werden geladen ...</div>
+      </div>
+
+      <div v-else-if="errorMessage" class="empty-state top-space-sm">
+        {{ errorMessage }}
       </div>
 
       <div v-else-if="topAlerts.length" class="list-stack top-space-sm">
@@ -125,13 +129,25 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { api } from '../services/api'
-import type { AlertType, InventoryAlert, InventoryStats } from '../types'
-import { getOrtsverbaende } from '../services/lagerApi'
+import type {
+  AlertType,
+  InventoryAlert,
+  InventoryStats,
+  LagerDetail,
+  Ortsverband,
+  Produkt,
+} from '../types'
+import {
+  getOrtsverbaende,
+  getWarehouseDetail,
+  getWarehouses,
+} from '../services/lagerApi'
+import { getExpiringProductsByOrtsverband } from '../services/warnungenApi'
+import type { ExpiringProduct } from '../services/warnungenApi'
 import { useOrtsverbandStore } from '../stores/ortsverbandStore'
-import type { Ortsverband } from '../types'
 
 const loading = ref(true)
+const errorMessage = ref('')
 
 const ortsverbaende = ref<Ortsverband[]>([])
 
@@ -160,29 +176,142 @@ const counts = computed(() => ({
 
 const topAlerts = computed(() => alerts.value.slice(0, 4))
 
-/* onMounted(async () => {
-  loading.value = true
-  stats.value = await api.getInventoryStats()
-  alerts.value = await api.getInventoryAlerts()
-  loading.value = false
-}) */
-
 onMounted(async () => {
   loading.value = true
+  errorMessage.value = ''
 
-  loadSelectedOrtsverband()
+  try {
+    loadSelectedOrtsverband()
 
-  ortsverbaende.value = await getOrtsverbaende()
+    ortsverbaende.value = await getOrtsverbaende()
 
-  if (!selectedOrtsverband.value && ortsverbaende.value.length > 0) {
-    setSelectedOrtsverband(ortsverbaende.value[0])
+    if (!selectedOrtsverband.value && ortsverbaende.value.length > 0) {
+      setSelectedOrtsverband(ortverbaendeFirst())
+    }
+
+    if (selectedOrtsverband.value) {
+      await loadDashboardData(selectedOrtsverband.value.id)
+    }
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = 'Dashboard-Daten konnten nicht geladen werden.'
+  } finally {
+    loading.value = false
+  }
+})
+
+function ortverbaendeFirst(): Ortsverband {
+  return ortsverbaende.value[0]
+}
+
+async function onOrtsverbandChange(event: Event): Promise<void> {
+  const id = Number((event.target as HTMLSelectElement).value)
+  const found = ortsverbaende.value.find((o) => o.id === id)
+
+  if (!found) return
+
+  setSelectedOrtsverband(found)
+  await loadDashboardData(found.id)
+}
+
+async function loadDashboardData(ortsverbandId: number): Promise<void> {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    const warehouses = await getWarehouses(ortsverbandId)
+
+    const warehouseDetails = await Promise.all(
+      warehouses.map((warehouse) => getWarehouseDetail(warehouse.id)),
+    )
+
+    stats.value = calculateStats(warehouseDetails)
+
+    const expiringProducts = await getExpiringProductsByOrtsverband(
+      ortsverbandId,
+      90,
+    )
+
+    alerts.value = expiringProducts
+      .filter((item) => item.days_left !== null && item.days_left < 90)
+      .map(mapExpiringProductToAlert)
+      .sort((a, b) => {
+        const daysA = a.daysUntilExpiry ?? 9999
+        const daysB = b.daysUntilExpiry ?? 9999
+        return daysA - daysB
+      })
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = 'Dashboard-Daten konnten nicht geladen werden.'
+  } finally {
+    loading.value = false
+  }
+}
+
+function calculateStats(warehouses: LagerDetail[]): InventoryStats {
+  let shelfCount = 0
+  let slotCount = 0
+  let productCount = 0
+  let totalUnits = 0
+
+  for (const warehouse of warehouses) {
+    shelfCount += warehouse.regale.length
+
+    for (const shelf of warehouse.regale) {
+      slotCount += shelf.lagerfaecher.length
+
+      for (const slot of shelf.lagerfaecher) {
+        productCount += slot.produkte.length
+
+        for (const product of slot.produkte) {
+          totalUnits += product.menge_eingelagert ?? 0
+        }
+      }
+    }
   }
 
-  stats.value = await api.getInventoryStats()
-  alerts.value = await api.getInventoryAlerts()
+  return {
+    warehouseCount: warehouses.length,
+    shelfCount,
+    slotCount,
+    productCount,
+    totalUnits,
+  }
+}
 
-  loading.value = false
-})
+function mapExpiringProductToAlert(item: ExpiringProduct): InventoryAlert {
+  const alertType: AlertType =
+    item.days_left !== null && item.days_left < 30 ? 'mhd-red' : 'mhd-yellow'
+
+  const product: Produkt = {
+    stock_id: item.stock_id,
+    produkt_id: item.product_id,
+    name: item.name,
+    marke: item.brand,
+    menge: null,
+    erzeugnisgruppe: null,
+    mhd: item.best_before,
+    menge_eingelagert: null,
+    menge_geoeffnet: null,
+    barcode: null,
+    naehrwerte: {
+      kcal: null,
+      protein: null,
+      fett: null,
+      kohlenhydrate: null,
+    },
+  }
+
+  return {
+    id: `mhd-${item.stock_id}`,
+    type: alertType,
+    product,
+    warehouseName: item.warehouse_name,
+    shelfName: 'Lager',
+    slotName: 'Fach',
+    daysUntilExpiry: item.days_left ?? undefined,
+  }
+}
 
 function statusClass(type: AlertType): string {
   if (type === 'mhd-red') return 'inline-status--danger'
@@ -191,8 +320,14 @@ function statusClass(type: AlertType): string {
 }
 
 function statusLabel(type: AlertType, days?: number): string {
-  if (type === 'mhd-red') return `MHD rot${typeof days === 'number' ? ` · ${days} Tage` : ''}`
-  if (type === 'mhd-yellow') return `MHD gelb${typeof days === 'number' ? ` · ${days} Tage` : ''}`
+  if (type === 'mhd-red') {
+    return `MHD rot${typeof days === 'number' ? ` · ${days} Tage` : ''}`
+  }
+
+  if (type === 'mhd-yellow') {
+    return `MHD gelb${typeof days === 'number' ? ` · ${days} Tage` : ''}`
+  }
+
   return 'Bestand kritisch'
 }
 </script>
